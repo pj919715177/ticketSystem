@@ -1,11 +1,21 @@
 <?php
 function getConf($keyStr)
 {
-	$conf = array();
+	$conf = array(
+	    'db' => array(
+	        '0' => array(
+                'host' => '',
+                'port' => '',
+                'user' => '',
+                'password' => '',
+	            'dbname' => '',
+            ),
+        ),
+        'redis' => array(),
+    );
 	$keyArr = explode('.', $keyStr);
-	$result = '';
 	foreach ($keyArr as $key) {
-		if (isset($conf[$key])) {
+		if (is_array($conf) && isset($conf[$key])) {
 			$conf = $conf[$key];
 		} else {
 			return null;
