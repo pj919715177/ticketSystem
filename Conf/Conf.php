@@ -5,16 +5,16 @@ function getConf($keyStr)
 	    'seatListName' => 'TICKET_SEAT',            //座位库存队列前缀
 
 	    'db' => array(
-            'host' => 'rm-wz9k531w73us21n79.mysql.rds.aliyuncs.com',
+            'host' => '',
             'port' => '3306',
-            'user' => 'xuser',
-            'password' => 'Xpass611',
+            'user' => '',
+            'password' => '',
             'dbname' => 'xproject',
         ),
         'redis' => array(
-            'host' => 'r-wz95b7e5292b9694.redis.rds.aliyuncs.com',
+            'host' => '',
             'port' => '6379',
-            'auth' => 'Xwed1108dev'
+            'auth' => ''
         ),
     );
 	$keyArr = explode('.', $keyStr);
