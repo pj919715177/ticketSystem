@@ -6,42 +6,14 @@ class ticketController extends Controller
     {
         //checkAdminLogin(省略)
         //checkRight(省略)
+        //redis加锁(防止初始化座位的时候回收座位)
         $scene_id = 1;          //第一场
         $ticketLogic = new ticketLogic();
-        $ret = $ticketLogic->getSceneConf($scene_id, $sceneConf);
+        $ret = $ticketLogic->initSeat($scene_id);
         if (!$ret) {
-            $this->tip(10000, '该场次未配置');
+            $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
-        $listName = "TICKET_SEAT_{$scene_id}";
-        $listNameBak = "TICKET_SEAT_{$scene_id}_BAK";
-        $limit = 500;       //每次插入500个座位
-        $offset = 1;
-        $lenght = 0;
-        $maxSeatId = $sceneConf['maxSeatId'];
-        while ($offset < $maxSeatId) {
-            //[$beg,$end)
-            $beg = $offset;
-            $end = $offset + $limit;
-            $end > $maxSeatId && $end = $maxSeatId;
-            $seatIdArr = $ticketLogic->getRangeSeatId($beg, $end);
-            //$redis->pipeline();        //管道
-            for ($index = $beg; $index < $end; $index++) {
-                if (in_array($index, $seatIdArr)) {
-                    continue;
-                }
-                //随机插入
-                $position = rand(0, $lenght);
-                if ($position == $lenght) {
-                    $redis->rpush($listNameBak, $index);
-                } else  {
-                    $tempValue = $redis->lGet($listNameBak, $position);
-                    $redis->lset($listNameBak, $position, $index);
-                    $redis->rpush($listNameBak, $tempValue);
-                }
-                $lenght++;
-            }
-            $offset += $limit;
-        }
+        $this->tip(0, '初始化座位成功');
     }
 
     //提交订单
@@ -57,18 +29,18 @@ class ticketController extends Controller
         $price = 18;
         //锁定订单
         $ticketLogic = new ticketLogic();
-        $ret = $ticketLogic->addOriginDeal($user_id, $token, $num, $price, $deal_id);
+        $ret = $ticketLogic->addOriginDeal($user_id, $token, $price, $deal_id, $deal_gen_time);
         if (!$ret) {
             $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
         //锁定座位
-        $ret = $ticketLogic->lockSeat($num, $scene_id);
+        $ret = $ticketLogic->lockSeat($num, $scene_id, $deal_id);
         if (!$ret) {
             $ticketLogic->rollBackDeal($deal_id);
             $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
         //设置订单状态为未支付
-        $ret = $ticketLogic->unpayDeal($deal_id, $deal_gen_time);
+        $ret = $ticketLogic->unpayDeal($deal_id);
         if (!$ret) {
             $ticketLogic->rollBackDeal($deal_id);
             $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
@@ -87,9 +59,10 @@ class ticketController extends Controller
         $ticketLogic = new ticketLogic();
         $ret = $ticketLogic->successDeal($deal_id);
         if (!$ret) {
-            //errLog(省略)
+            $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
         //infoLog（省略）
+        $this->tip(0, '付款成功');
     }
 
     //申请退款
@@ -101,14 +74,16 @@ class ticketController extends Controller
 
         //todo:checkDeal
         $ticketLogic = new ticketLogic();
-        $ret = $ticketLogic->refundDeal($deal_id);
+        $ret = $ticketLogic->refundDeal($user_id, $deal_id);
+        if (!$ret) {
+            $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
+        }
 
-        //todo:refund
         //异步退款（退款成功后修改订单状态为已退款）（省略）
-        //修改订单状态
+        $this->tip(0, '申请退款成功');
     }
 
-    //退款成功
+    //退款回调
     public function refundDealSuccess()
     {
         //省略获取订单id的细节，假设直接拿到deal_id
@@ -117,24 +92,37 @@ class ticketController extends Controller
         $ticketLogic = new ticketLogic();
         $ret = $ticketLogic->refundDealSuccess($deal_id);
         if (!$ret) {
-            //errLog(省略)
+            $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
         //infoLog（省略）
+        $this->tip(0, '退款成功');
+
     }
 
 
     //回收座位（建议5分钟运行一次）
     public function retrieveSeat()
     {
-        $currentTime = strtotime(trim($_GET['currentTime']));       //支持脚本补跑
+        $currentTime = null;
+        if (isset($_GET['currentTime'])) {
+            $currentTime = strtotime(trim($_GET['currentTime']));       //支持脚本补跑
+        }
         !$currentTime && $currentTime = time();
+        $lockKey = "SEAT_CHANGE";
         //redis加锁
+        $expire = 10*60;        //锁的有效时间10分钟
+        if (!redisLib::lock($lockKey, $expire)) {
+            $this->tip(10000, '上一个流程还在执行');
+            return false;
+        }
         //关闭失效订单
         $ticketLogic = new ticketLogic();
         $ret = $ticketLogic->closeUselessDeal();
         if (!$ret) {
             //errLog(省略)
             //redis解锁
+            redisLib::unlock($lockKey);
+            $this->tip(10000, '关闭订单出错');
             return false;
         }
         //分页查询失效订单关联的座位
@@ -146,13 +134,15 @@ class ticketController extends Controller
             if (!$ret) {
                 //errLog(省略)
                 //redis解锁
-                return false;
+                redisLib::unlock($lockKey);
+                $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
             }
-            if ($lastCount != -1 && $count <= $lastCount) {
+            if ($lastCount != -1 && $count >= $lastCount) {
                 //流程出错或有其他进程在处理，
                 //errLog(省略)
                 //redis解锁
-                return false;
+                redisLib::unlock($lockKey);
+                $this->tip(10001, '流程错误！');
             }
             $lastCount = $count;
             if ($count > 0) {
@@ -162,29 +152,37 @@ class ticketController extends Controller
                 if (!$ret) {
                     //errLog(省略)
                     //redis解锁
-                    return false;
+                    redisLib::unlock($lockKey);
+                    $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
                 }
                 //删除这部分座位
                 $seatIdArr = array_column($dataList, 'seat_id');
                 $ret = $ticketLogic->delSeat($seatIdArr);
-                //去掉已经在队列中的座位
-                $redis->multi();        //事务
-                foreach ($seatIdArr as $value) {
-                    $redis->rPush($lishName, $value);
-                }
-                $val = $redis->exec();
-                if ($val === false){
-                    //errlog(省略)
-                    //回退，新增回数据
-                    $ticketLogic->rollBackUselessSeat($dataList);
+                if (!$ret) {
+                    //errLog(省略)
                     //redis解锁
-                    return false;
+                    redisLib::unlock($lockKey);
+                    $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
                 }
-                //将这部分座位放回队列
+                //把回收的座位放回到队列
+                foreach ($dataList as $key => $row) {
+                    $lishName = getConf('seatListName') . "_{$row['scene_id']}";
+                    $val = redisLib::publish($lishName, $row['seat_id']);
+                    if ($val === false){
+                        //errlog(省略)
+                        //回退，新增回数据
+                        $ticketLogic->rollBackUselessSeat($dataList);
+                        //redis解锁
+                        redisLib::unlock($lockKey);
+                    }
+                    unset($dataList[$key]);
+                }
             } else {
                 break;
             }
         }
         //redis解锁
+        redisLib::unlock($lockKey);
+        $this->tip(0, '处理完成');
     }
 }

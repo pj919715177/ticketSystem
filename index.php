@@ -1,6 +1,6 @@
 <?php
 spl_autoload_register(function ($class) {
-    $dirArr = array('Controller','Logic','Model');
+    $dirArr = array('Controller','Logic','Model','Lib');
     foreach ($dirArr as $dir) {
         if (strpos($class, $dir) !== false) {
             include "./{$dir}/{$class}.class.php";
@@ -22,12 +22,12 @@ if (preg_match("/cli/i", php_sapi_name())) {
             $controller = $info[0];
         }
         if ($info && isset($info[1])) {
-            $controller = $info[1];
+            $function = $info[1];
         }
         //设置参数
         for ($index = 2;$index < count($info); $index+=2) {
             if (isset($info[$index]) && isset($info[$index + 1])) {
-                $_GET[$info[$index]] = $_GET[$info[$index + 1]];
+                $_GET[$info[$index]] = $info[$index + 1];
             } else {
                 break;
             }
