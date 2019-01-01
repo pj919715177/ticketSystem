@@ -13,7 +13,7 @@
 + 未支付订单30分钟后自动关闭，所以生成支付信息时，支付有效期限也是30分钟；
 + 支付信息查询重试由支付系统实现；
 + 假设退款可以直接退，无需人工审核。
-+ ![订单状态流转](https://github.com/pj919715177/ticketSystem/edit/master/deal_state.png "deal_state")
++ [订单状态流转图点这里>](https://github.com/pj919715177/ticketSystem/edit/master/deal_state.png "deal_state")
 ### 运行
 1. mysql和redis配置，具体配置填写在./Conf/Conf.php
 2. mysql数据库建表，[建表sql点击这里>](https://github.com/pj919715177/ticketSystem/edit/master/sql.md)。
