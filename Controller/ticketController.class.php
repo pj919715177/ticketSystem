@@ -6,7 +6,6 @@ class ticketController extends Controller
     {
         //checkAdminLogin(省略)
         //checkRight(省略)
-        //redis加锁(防止初始化座位的时候回收座位)
         $scene_id = 1;          //第一场
         $ticketLogic = new ticketLogic();
         $ret = $ticketLogic->initSeat($scene_id);
@@ -34,7 +33,7 @@ class ticketController extends Controller
             $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
         }
         //锁定座位
-        $ret = $ticketLogic->lockSeat($num, $scene_id, $deal_id);
+        $ret = $ticketLogic->lockSeat($num, $scene_id, $deal_id,$seat_info);
         if (!$ret) {
             $ticketLogic->rollBackDeal($deal_id);
             $this->tip($ticketLogic->errCode, $ticketLogic->errMsg);
@@ -47,7 +46,7 @@ class ticketController extends Controller
         }
         //创建支付信息（省略）
         $payInfo = array();
-        $this->tip(0, '订单提交成功', array('payInfo' => $payInfo));
+        $this->tip(0, '订单提交成功', array('payInfo' => $payInfo, 'seat_info' => $seat_info));
     }
 
     //付款回调

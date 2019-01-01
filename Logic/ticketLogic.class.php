@@ -21,7 +21,7 @@ class ticketLogic
             1 => array(
                 'begTime' => strtotime('2018-12-30'),
                 'endTime' => strtotime('2019-2-1'),
-                'maxSeatId' => 30,
+                'maxSeatId' => 7800,
                 'idToPos' => 'idToPos_1',           //座位id转换成位置的方法
                 'posToId' => 'posToId_1',           //位置转换成座位id的方法
             ),
@@ -57,7 +57,7 @@ class ticketLogic
     }
 
     //锁定座位
-    public function lockSeat($num, $scene_id, $deal_id)
+    public function lockSeat($num, $scene_id, $deal_id, &$seat_info = array())
     {
         if ($num < 1 || $num > 5) {
             $this->errCode = 20000;
@@ -73,6 +73,54 @@ class ticketLogic
                 $this->errCode = 20000;
                 $this->errMsg = "库存不足";
                 return false;
+            }
+            $ret = $this->idToPos_1($seatId, $tempSeat);
+            if ($ret === false) {
+                $this->errCode = 20001;
+                $this->errMsg = "服务器错误";
+                return false;
+            }
+            $seat_info[] = $tempSeat;
+            $addData = array('seat_id' => $seatId, 'scene_id' => $scene_id, 'bussiness_id' => $deal_id, 'add_time' => time());
+            $ret = $ticketInfoModel->insertData($addData);
+            if ($ret === false) {
+                $this->errCode = 20002;
+                $this->errMsg = "服务器错误";
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    //锁定座位（优化）
+    public function lockSeatV2($num, $scene_id, $deal_id)
+    {
+        if ($num < 1 || $num > 5) {
+            $this->errCode = 20000;
+            $this->errMsg = "只能购买不超过5个座位";
+            return false;
+        }
+
+        $listName = getConf('seatListName') . "_{$scene_id}";
+        $retry = 0;
+        $ticketInfoModel = new ticketInfoModel();
+        for ($index = 0; $index < $num;  $index++) {
+            $seatId = redisLib::subscripe($listName);
+            if ($seatId === false) {
+                //重试逻辑
+                $rate = rand(0,1000);//概率控制
+                //手上有资源，重试不超过3次，且随机概率1/100
+                if ($index > 0 && $retry < 3 && $rate > 990) {
+                    $index--;
+                    $retry++;
+                    $sec = rand(10000,100000);       //随机等待0.01~0.1秒
+                    usleep($sec);
+                } else {
+                    $this->errCode = 20000;
+                    $this->errMsg = "库存不足";
+                    return false;
+                }
             }
             $addData = array('seat_id' => $seatId, 'scene_id' => $scene_id, 'bussiness_id' => $deal_id, 'add_time' => time());
             $ret = $ticketInfoModel->insertData($addData);
@@ -267,7 +315,7 @@ class ticketLogic
         $lenght = 0;        //队列长度
         $limit = 500;       //每次插入500个座位
         $offset = 1;
-        $maxSeatId = $sceneConf['maxSeatId'];
+        $maxSeatId = $sceneConf['maxSeatId'] + 1;
         while ($offset < $maxSeatId) {
             //[$beg,$end)
             $beg = $offset;
@@ -275,7 +323,7 @@ class ticketLogic
             $end > $maxSeatId && $end = $maxSeatId;
             //获取范围内已锁定的座位
             $this->getRangeSeatId($beg, $end, $scene_id, $seatIdArr);
-            for ($index = $beg; $index <= $end; $index++) {
+            for ($index = $beg; $index < $end; $index++) {
                 if (in_array($index, $seatIdArr)) {
                     continue;
                 }
