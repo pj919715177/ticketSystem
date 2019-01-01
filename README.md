@@ -16,7 +16,7 @@
 + [订单状态流转图点这里>](https://github.com/pj919715177/ticketSystem/edit/master/deal_state.png "deal_state")
 ### 运行
 1. mysql和redis配置，具体配置填写在./Conf/Conf.php
-2. mysql数据库建表，[建表sql点击这里>](https://github.com/pj919715177/ticketSystem/edit/master/sql.md)。
+2. mysql数据库建表，[建表sql点击这里>](https://github.com/pj919715177/ticketSystem/blob/master/sql.md)。
 3. 功能demo运行（**cli下**）
     * 初始化座位：php index.php /ticket/initSeat
     * 提交订单：php index.php /ticket/submitOrder/user_id/18/num/3/scene_id/1/token/123 （user_id:用户id,num:购买座位数,scene_id:票务售卖场次,token:表单的唯一token，防重复提交订单）
