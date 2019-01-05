@@ -1,4 +1,4 @@
-**如果并发太高，也可以选择使用redis存储库存**
+**如果并发太高，也可以选择使用redis存储库存**    
 ####新增场次表
 ```mysql
 create table scene_info (
