@@ -1,3 +1,4 @@
+**如果并发太高，也可以选择使用redis存储库存**
 ####新增场次表
 ```mysql
 create table scene_info (
@@ -18,7 +19,7 @@ function init() {
     $model->execute($sql);
 }
 ```
-####提交订单只需要锁定座位和扣减库存(如果并发太高，也可以选择使用redis存储库存)
+####提交订单只需要锁定座位和扣减库存
 ```php
 //提交订单
 public function submitOrder()
