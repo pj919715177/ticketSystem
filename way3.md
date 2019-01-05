@@ -1,5 +1,5 @@
 **如果并发太高，也可以选择使用redis存储库存**    
-####新增场次表
+##### 新增场次表
 ```mysql
 create table scene_info (
   `scene_id` int(10) NOT NULL AUTO_INCREMENT COMMENT '场次id',
@@ -10,7 +10,7 @@ create table scene_info (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='场次信息表';
 ```
 
-####每个活动开始前，初始化场次信息
+##### 每个活动开始前，初始化场次信息
 ```php
 //初始化
 function init() {
@@ -19,7 +19,7 @@ function init() {
     $model->execute($sql);
 }
 ```
-####提交订单只需要锁定座位和扣减库存
+##### 提交订单只需要锁定座位和扣减库存
 ```php
 //提交订单
 public function submitOrder()
@@ -65,7 +65,7 @@ public function submitOrder()
 }
 ```
 
-####支付完成后锁定座位并触达用户
+##### 支付完成后锁定座位并触达用户
 ```php
 function getTicket($num,$deal_id)
 {
